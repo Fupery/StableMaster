@@ -10,6 +10,8 @@ import org.bukkit.OfflinePlayer;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Horse;
 import org.bukkit.entity.Player;
+import org.bukkit.event.player.PlayerTeleportEvent;
+import org.bukkit.scheduler.BukkitRunnable;
 
 import java.util.List;
 
@@ -39,10 +41,7 @@ public class Teleport implements SubHandler {
                                     return;
                                 }
 
-                                // TODO: Somehow get an error message when it doesn't teleport, all other attempts have failed.
-                                horse.teleport(((Player) sender));
-                                sender.sendMessage(StableMaster.playerMessage("Teleporting... If the horse did not appear, get a friend to stand near it next time."));
-                                plugin.TeleportQueue.remove((Player) sender);
+                                new TeleportEval(plugin, horse, sender).runTask(plugin);
 
                             } else {
 
@@ -65,4 +64,37 @@ public class Teleport implements SubHandler {
         return "teleport";
     }
 
+}
+class TeleportEval extends BukkitRunnable {
+
+    StableMaster plugin;
+    Horse horse;
+    CommandSender sender;
+
+    public TeleportEval(StableMaster plugin, Horse horse, CommandSender sender){
+        this.plugin = plugin;
+        this.horse = horse;
+        this.sender = sender;
+    }
+
+    public void run() {
+        if (chunkIsLoaded()) {
+            horse.teleport(((Player) sender), PlayerTeleportEvent.TeleportCause.PLUGIN);
+            sender.sendMessage(StableMaster.playerMessage("Teleporting..."));
+            plugin.TeleportQueue.remove((Player) sender);
+        } else {
+            plugin.chunkLoadQueue.put(horse.getLocation().getChunk(), (Player) sender);
+            horse.getLocation().getChunk().load();
+        }
+    }
+
+    private boolean chunkIsLoaded() {
+        Location l = horse.getLocation();
+        for (Chunk c : l.getWorld().getLoadedChunks()) {
+            if (c.equals(l.getChunk())) {
+                return true;
+            }
+        }
+        return false;
+    }
 }
